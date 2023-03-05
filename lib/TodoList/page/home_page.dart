@@ -1,7 +1,6 @@
-import 'dart:convert';
 import 'package:apicll/TodoList/page/addtodopage.dart';
 import 'package:flutter/material.dart';
-import 'package:http/http.dart ' as http;
+import 'package:apicll/TodoList/services/api/api_helper.dart';
 
 class HomePage extends StatefulWidget {
   const HomePage({super.key});
@@ -15,7 +14,7 @@ class _HomePageState extends State<HomePage> {
   @override
   void initState() {
     super.initState();
-    fetchtodo();
+    _fetchtodo();
   }
 
   @override
@@ -27,39 +26,79 @@ class _HomePageState extends State<HomePage> {
         ),
       ),
       body: Visibility(
-        replacement: Center(child: CircularProgressIndicator()),
+        replacement: const Center(child: CircularProgressIndicator()),
         child: RefreshIndicator(
-          onRefresh: fetchtodo,
+          onRefresh: _fetchtodo,
           child: ListView.builder(
             itemCount: items.length,
             itemBuilder: (context, index) {
               final item = items[index];
-              final id = item["_id"] as String;
-              return ListTile(
-                leading: CircleAvatar(child: Text("${index + 1}")),
-                title: Text(item['title']),
-                subtitle: Text(item['description']),
-                trailing: PopupMenuButton(
-                  onSelected: (value) {
-                    if (value == "edit") {
-                      // edit page
-                      navigatetoEditpage(item);
-                    } else {
-                      deleteById(id);
-                    }
-                  },
-                  itemBuilder: (context) {
-                    return const [
-                      PopupMenuItem(
-                        child: Text("Edit"),
-                        value: "edit",
-                      ),
-                      PopupMenuItem(
-                        child: Text("Delete"),
-                        value: "delete",
-                      ),
-                    ];
-                  },
+              final id = item["_id"];
+              return Dismissible(
+                key: UniqueKey(),
+                onDismissed: (direction) {
+                  if (direction == DismissDirection.endToStart) {
+                    _deleteById(id);
+                  } else {
+                    navigatetoEditpage(item);
+                  }
+                },
+                background: Container(
+                  padding: const EdgeInsets.only(left: 10),
+                  color: Colors.blue,
+                  child: Row(children: const [
+                    Icon(
+                      Icons.add_card,
+                    ),
+                    SizedBox(
+                      width: 5,
+                    ),
+                    Text("Edit")
+                  ]),
+                ),
+                secondaryBackground: Container(
+                  color: Colors.red,
+                  alignment: Alignment.center,
+                  padding: const EdgeInsets.only(right: 10),
+                  child: Row(
+                      mainAxisAlignment: MainAxisAlignment.end,
+                      crossAxisAlignment: CrossAxisAlignment.end,
+                      children: const [
+                        Icon(
+                          Icons.delete,
+                        ),
+                        SizedBox(
+                          width: 4,
+                        ),
+                        Text("Delete"),
+                      ]),
+                ),
+                child: ListTile(
+                  leading: CircleAvatar(child: Text("${index + 1}")),
+                  title: Text(item['title']),
+                  subtitle: Text(item['description']),
+                  trailing: PopupMenuButton(
+                    onSelected: (value) {
+                      if (value == "edit") {
+                        // edit page
+                        navigatetoEditpage(item);
+                      } else {
+                        _deleteById(id);
+                      }
+                    },
+                    itemBuilder: (context) {
+                      return const [
+                        PopupMenuItem(
+                          value: "edit",
+                          child: Text("Edit"),
+                        ),
+                        PopupMenuItem(
+                          value: "delete",
+                          child: Text("Delete"),
+                        ),
+                      ];
+                    },
+                  ),
                 ),
               );
             },
@@ -76,7 +115,7 @@ class _HomePageState extends State<HomePage> {
   Future<void> navigatetoaddpage() async {
     final route = MaterialPageRoute(
       builder: (context) => AddToDoPage(
-        mytodo: fetchtodo,
+        mytodo: _fetchtodo,
       ),
     );
     await Navigator.push(context, route);
@@ -85,29 +124,23 @@ class _HomePageState extends State<HomePage> {
   Future<void> navigatetoEditpage(Map item) async {
     final route = MaterialPageRoute(
       builder: (context) => AddToDoPage(
-        mytodo: fetchtodo,
+        mytodo: _fetchtodo,
         todo: item,
       ),
     );
     Navigator.push(context, route);
   }
 
-  Future<void> fetchtodo() async {
-    const url = "https://api.nstack.in/v1/todos?page=1&limit=10";
-    final uri = Uri.parse(url);
-    final response2 = await http.get(uri);
-    final json = jsonDecode(response2.body);
-    final result = json['items'] as List;
+  Future<void> _fetchtodo() async {
+    final result = await Apihelper().fetchtodo();
     setState(() {
       items = result;
     });
   }
 
-  Future<void> deleteById(String id) async {
-    final url = "https://api.nstack.in/v1/todos/" + id;
-    final uri = Uri.parse(url);
-    final response = await http.delete(uri);
-    if (response.statusCode == 200) {
+  Future<void> _deleteById(String id) async {
+    final statusCode = await Apihelper().deleteById(id, _fetchtodo);
+    if (statusCode == 200) {
       final filtered = items.where((element) => element['_id'] != id).toList();
       setState(() {
         items = filtered;
